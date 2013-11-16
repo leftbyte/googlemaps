@@ -24,6 +24,8 @@ waypointByID[{{waypoint.id}}] = {
 };
 {% endfor %}
 
+var currentObject;
+
 $(document).ready(function () {
     function activateWaypoints() {
         // Add waypoint click handler
@@ -31,8 +33,18 @@ $(document).ready(function () {
             $(this).click(function() {
                 var waypoint = waypointByID[this.id];
                 var center = new google.maps.LatLng(waypoint.lat, waypoint.lng);
+                currentObject = $(this);
                 if (marker) marker.setMap();
-                marker = new google.maps.Marker({map: map, position: center});
+                marker = new google.maps.Marker({map: map, position: center, draggable: true});
+                google.maps.event.addListener(marker, 'dragend', function() {
+                    var position = marker.getPosition();
+                    waypoint.lat = position.lat();
+                    waypoint.lng = position.lng();
+                    currentObject.html(waypoint.name +
+                        ' (' + waypoint.lat +
+                        ', ' + waypoint.lng + ')');
+                    $('#saveWaypoints').removeAttr('disabled');
+                });
                 map.panTo(center);
             }).hover(
                 function () {this.className = this.className.replace('OFF', 'ON');},
@@ -40,6 +52,22 @@ $(document).ready(function () {
             );
         });
     }
+    $('#saveWaypoints').click(function () {
+        var waypointStrings = [];
+        for (id in waypointByID) {
+            waypoint = waypointByID[id];
+            waypointStrings.push(id + ' ' + waypoint.lng + ' ' + waypoint.lat);
+        };
+        $.post("{% url "waypoints-save" %}", {
+            waypointsPayload: waypointStrings.join('\n')
+        }, function (data) {
+            if (data.isOk) {
+                $('#saveWaypoints').attr('disabled', 'disabled');
+            } else {
+                alert(data.message);
+            }
+        });
+    });
     activateWaypoints();
 });
 </script>
@@ -58,5 +86,6 @@ $(document).ready(function () {
     <div id=waypoints>
         {{content}}
     </div>
+    <input id=saveWaypoints type=button value=Save disabled=disabled>
 </body>
 </html>

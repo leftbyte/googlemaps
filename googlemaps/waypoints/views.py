@@ -1,10 +1,8 @@
 from django.shortcuts import render_to_response
 from django.template.loader import render_to_string
-# Import custom modules
-from googlemaps.waypoints.models import Waypoint
-
-# Create your views here.
 from django.http import HttpResponse
+from googlemaps.waypoints.models import Waypoint
+import simplejson
 
 def index(request):
     'Display map'
@@ -13,3 +11,13 @@ def index(request):
         'waypoints': waypoints,
         'content': render_to_string('waypoints/waypoints.html', {'waypoints': waypoints}),
     })
+
+def save(request):
+    'Save waypoints'
+    for waypointString in request.POST.get('waypointsPayload', '').splitlines():
+        waypointID, waypointX, waypointY = waypointString.split()
+        waypoint = Waypoint.objects.get(id=int(waypointID))
+        waypoint.geometry.set_x(float(waypointX))
+        waypoint.geometry.set_y(float(waypointY))
+        waypoint.save()
+    return HttpResponse(simplejson.dumps(dict(isOk=1)), mimetype='application/json')
