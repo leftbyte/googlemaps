@@ -115,6 +115,11 @@ $(document).ready(function () {
 
 </head>
 <body onload='initialize()'>
+    <form enctype="multipart/form-data" method=post action="{% url 'waypoints-upload' %}">
+         {% csrf_token %}
+         <input type=file name=gpx>
+         <input type=submit value='Upload GPX'>
+    </form>
     <div id=map></div>
     <div id=waypoints>
         {{content}}

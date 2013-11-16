@@ -1,9 +1,18 @@
-from django.shortcuts import render_to_response
+from django.http import HttpResponse, HttpResponseRedirect
+from django.template import RequestContext
 from django.template.loader import render_to_string
-from django.http import HttpResponse
-from googlemaps.waypoints.models import Waypoint
+from django.shortcuts import render_to_response
+from django.core.urlresolvers import reverse
 from django.contrib.gis.geos import Point
+from django.contrib.gis.gdal import DataSource
+
+import itertools
+import tempfile
+import os
 import simplejson
+
+from googlemaps.waypoints.models import Waypoint
+from googlemaps import settings
 
 def index(request):
     'Display map'
@@ -11,7 +20,7 @@ def index(request):
     return render_to_response('waypoints/index.html', {
         'waypoints': waypoints,
         'content': render_to_string('waypoints/waypoints.html', {'waypoints': waypoints}),
-    })
+    }, context_instance=RequestContext(request))
 
 def save(request):
     'Save waypoints'
@@ -45,3 +54,27 @@ def search(request):
                             }) for x in waypoints),
                 )), mimetype='application/json')
 
+def upload(request):
+    'Upload waypoints'
+    # If the form contains an upload,
+    if 'gpx' in request.FILES:
+        # Get
+        gpxFile = request.FILES['gpx']
+        # Save
+        targetPath = tempfile.mkstemp()[1]
+        destination = open(targetPath, 'wt')
+        for chunk in gpxFile.chunks():
+            destination.write(chunk)
+        destination.close()
+        # Parse
+        dataSource = DataSource(targetPath)
+        layer = dataSource[0]
+        waypointNames = layer.get_fields('name')
+        waypointGeometries = layer.get_geoms()
+        for waypointName, waypointGeometry in itertools.izip(waypointNames, waypointGeometries):
+            waypoint = Waypoint(name=waypointName, geometry=waypointGeometry.wkt)
+            waypoint.save()
+        # Clean up
+        os.remove(targetPath)
+    # Redirect
+    return HttpResponseRedirect(reverse('waypoints-index'))
