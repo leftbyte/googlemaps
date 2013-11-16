@@ -6,12 +6,15 @@
 <script src="http://code.jquery.com/jquery-1.4.4.min.js"></script>
 <script>
 var map;
+var geocoder;
+
 function initialize() {
     map = new google.maps.Map(document.getElementById('map'), {
         zoom: 13,
         center: new google.maps.LatLng(37.776363, -122.434734),
         mapTypeId: google.maps.MapTypeId.ROADMAP
     });
+    geocoder = new google.maps.Geocoder();
 }
 
 var marker;
@@ -52,13 +55,14 @@ $(document).ready(function () {
             );
         });
     }
+
     $('#saveWaypoints').click(function () {
         var waypointStrings = [];
         for (id in waypointByID) {
             waypoint = waypointByID[id];
             waypointStrings.push(id + ' ' + waypoint.lng + ' ' + waypoint.lat);
         };
-        $.post("{% url "waypoints-save" %}", {
+        $.post("{% url 'waypoints-save' %}", {
             waypointsPayload: waypointStrings.join('\n')
         }, function (data) {
             if (data.isOk) {
@@ -68,6 +72,35 @@ $(document).ready(function () {
             }
         });
     });
+
+    function searchWaypoints() {
+        geocoder.geocode({
+            'address': $('#address').val()
+        }, function(results, status) {
+            if (status == google.maps.GeocoderStatus.OK) {
+                var position = results[0].geometry.location;
+                $.get("{% url 'waypoints-search' %}", {
+                    lat: position.lat(),
+                    lng: position.lng()
+                }, function (data) {
+                    if (data.isOk) {
+                        $('#waypoints').html(data.content);
+                        waypointByID = data.waypointByID;
+                        activateWaypoints();
+                    } else {
+                        alert(data.message);
+                    }
+                }, 'json');
+            } else {
+                alert('Could not find geocoordinates for the following reason: ' + status);
+            }
+        });
+    }
+    $('#searchWaypoints').click(searchWaypoints);
+    $('#address').keydown(function(e) {
+        if (e.keyCode == 13) searchWaypoints();
+    });
+
     activateWaypoints();
 });
 </script>
@@ -87,5 +120,10 @@ $(document).ready(function () {
         {{content}}
     </div>
     <input id=saveWaypoints type=button value=Save disabled=disabled>
+    <br>
+    <br>
+    <br>
+    <input id=address value='San Francisco, CA'>
+    <input id=searchWaypoints type=button value='Rank waypoints by distance from address'>
 </body>
 </html>
